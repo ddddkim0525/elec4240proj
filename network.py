@@ -10,8 +10,12 @@ class Autoencoder(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(32, 64, 3),
             nn.ReLU(inplace=True),
+            nn.Conv2d(64, 128, 3),
+            nn.ReLU(inplace=True),
         )
         self. decoder = nn.Sequential(
+            nn.ConvTranspose2d(128, 64, 3),
+            nn.ReLU(inplace=True),
             nn.ConvTranspose2d(64, 32, 3),
             nn.ReLU(inplace=True),
             nn.ConvTranspose2d(32, channel, 3),
