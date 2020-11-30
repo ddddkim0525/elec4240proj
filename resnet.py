@@ -19,7 +19,7 @@ class BasicBlock(nn.Module):
             nn.Conv2d(in_channel, out_channel, kernel_size = 1, bias = False),
             nn.BatchNorm2d(out_channel)
         )
-    
+
     def forward(self, x):
         identity = self.resize(x)
         out = self.block(x)
@@ -36,7 +36,7 @@ class ResNet(nn.Module):
         in_channel: int = 3,
         out_channel: int = 1,
         block: Type[Union[BasicBlock]] = BasicBlock,
-        layers: List[int] = [2,2,2,2],
+        layers: List[int] = [1,1,1,1],
         num_classes: int = 10):
         super(ResNet,self).__init__()
 
@@ -50,10 +50,28 @@ class ResNet(nn.Module):
         self.layer3 = self._make_layer(block,128, 256,layers[2])
         self.layer4 = self._make_layer(block,256, 512,layers[3])
         self.model_tail_disp = nn.Sequential(
-            nn.ConvTranspose2d(512, 256, kernel_size = 2, stride =2),
-            nn.ConvTranspose2d(256, 128, kernel_size = 2, stride =2),
+            nn.ConvTranspose2d(512, 128, kernel_size = 2, stride =2),
+            nn.ConvTranspose2d(128, 64, kernel_size = 2, stride =2),
             nn.ReLU(),
-            nn.Conv2d(128, 1, 1)
+            nn.Conv2d(64, 1, 1)
+        )
+        self.model_tail_disp = nn.Sequential(
+            nn.ConvTranspose2d(512, 128, kernel_size = 2, stride =2),
+            nn.ConvTranspose2d(128, 64, kernel_size = 2, stride =2),
+            nn.ReLU(),
+            nn.Conv2d(64, 1, 1)
+        )
+        self.model_tail_norm = nn.Sequential(
+            nn.ConvTranspose2d(512, 128, kernel_size = 2, stride =2),
+            nn.ConvTranspose2d(128, 64, kernel_size = 2, stride =2),
+            nn.ReLU(),
+            nn.Conv2d(64, 3, 1)
+        )
+        self.model_tail_rough = nn.Sequential(
+            nn.ConvTranspose2d(512, 128, kernel_size = 2, stride =2),
+            nn.ConvTranspose2d(128, 64, kernel_size = 2, stride =2),
+            nn.ReLU(),
+            nn.Conv2d(64, 1, 1)
         )
     def forward(self, x):
         x = self.model_head(x)
@@ -62,7 +80,9 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         disp = self.model_tail_disp(x)
-        return disp
+        norm = self.model_tail_norm(x)
+        rough = self.model_tail_rough(x)
+        return disp, norm, rough
 
     def _make_layer(self, block,in_channel, out_channel, layer_num):
         layers = []
