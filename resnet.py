@@ -79,10 +79,10 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        disp = self.model_tail_disp(x)
+        #disp = self.model_tail_disp(x)
         norm = self.model_tail_norm(x)
-        rough = self.model_tail_rough(x)
-        return disp, norm, rough
+        #rough = self.model_tail_rough(x)
+        return norm
 
     def _make_layer(self, block,in_channel, out_channel, layer_num):
         layers = []
