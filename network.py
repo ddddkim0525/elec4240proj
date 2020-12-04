@@ -1,94 +1,69 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
-# Spatial size of training images. All images will be resized to this
-#   size using a transformer.
-image_size = 64
-
-# Number of channels in the training images. For color images this is 3
-nc = 3
-
-# Size of z latent vector (i.e. size of generator input)
-nz = 100
-
-# Size of feature maps in generator
-ngf = 64
-
-# Size of feature maps in discriminator
-ndf = 64
-
-# Number of training epochs
-num_epochs = 5
-
-# Learning rate for optimizers
-lr = 0.0002
-
-# Beta1 hyperparam for Adam optimizers
-beta1 = 0.5
-
-# Number of GPUs available. Use 0 for CPU mode.
-ngpu = 1
-
-class Autoencoder(nn.Module):
-    def __init__(self,channel = 3, **kwargs):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Conv2d(channel, 32, 3),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(32, 64, 3),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(64, 128, 3),
-            nn.ReLU(inplace=True),
-        )
-        self. decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 3),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, 3),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, channel, 3),
-            nn.Tanh(inplace=True)
-        )
-
-    def forward(self, x):
-        code = self.encoder(x)
-        reconstruct = self.decoder(code)
-        return reconstruct
-
+def weights_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Conv') != -1:
+        nn.init.normal_(m.weight.data, 0.0, 0.02)
+    elif classname.find('BatchNorm') != -1:
+        nn.init.normal_(m.weight.data, 1.0, 0.02)
+        nn.init.constant_(m.bias.data, 0)
 
 class Generator(nn.Module):
-    def __init__(self, ngpu):
+    def __init__(self,ngf):
         super(Generator, self).__init__()
-        self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.Conv2d(3, ngf * 8, 3, 1, 1, bias=False),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*8) x 4 x 4
-            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+            nn.Conv2d(ngf * 8, ngf * 4, 3, 1, 1, bias=False),
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
             # state size. (ngf*4) x 8 x 8
-            nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+            nn.Conv2d( ngf * 4, ngf * 2, 3, 1, 1, bias=False),
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
+            # state size. (nc) x 64 x 64
+        )
+        self.disp = nn.Sequential(
             # state size. (ngf*2) x 16 x 16
-            nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
+            nn.Conv2d( ngf * 2, ngf, 3, 1, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
             # state size. (ngf) x 32 x 32
-            nn.ConvTranspose2d( ngf, nc, 4, 2, 1, bias=False),
-            nn.Tanh()
-            # state size. (nc) x 64 x 64
+            nn.Conv2d( ngf, 1, 3, 1, 1, bias=False),
+            nn.Sigmoid()
         )
-
+        self.nor = nn.Sequential(
+            # state size. (ngf*2) x 16 x 16
+            nn.Conv2d( ngf * 2, ngf, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            # state size. (ngf) x 32 x 32
+            nn.Conv2d( ngf, 3, 3, 1, 1, bias=False),
+            nn.Sigmoid()
+        )
+        self.rough = nn.Sequential(
+            # state size. (ngf*2) x 16 x 16
+            nn.Conv2d( ngf * 2, ngf, 3, 1, 1, bias=False),
+            nn.BatchNorm2d(ngf),
+            nn.ReLU(True),
+            # state size. (ngf) x 32 x 32
+            nn.Conv2d( ngf, 1, 1, 1, 1, bias=False),
+            nn.Sigmoid()
+        )
     def forward(self, input):
-        return self.main(input)
+        common = self.main(input)
+        disp = self.disp(common)
+        nor = self.nor(common)
+        rough = self.rough(common)
+        return [disp, nor, rough]
 
 class Discriminator(nn.Module):
-    def __init__(self, ngpu):
+    def __init__(self,ndf, nc):
         super(Discriminator, self).__init__()
-        self.ngpu = ngpu
         self.main = nn.Sequential(
             # input is (nc) x 64 x 64
             nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
@@ -112,3 +87,15 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         return self.main(input)
+
+device = torch.device("cuda")
+
+netG = Generator(64).to(device)
+netG.apply(weights_init)
+netD_nor = Discriminator(64,3).to(device)
+netD_disp = Discriminator(64,1).to(device)
+netD_rough = Discriminator(64,1).to(device)
+netD_nor.apply(weights_init)
+netD_disp.apply(weights_init)
+netD_rough.apply(weights_init)
+netDs = [netD_disp, netD_nor, netD_rough]
