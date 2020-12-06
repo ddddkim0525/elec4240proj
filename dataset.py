@@ -1,8 +1,10 @@
 import os
 import random
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+from PIL import Image
+import numpy as np
 class TextureDataset(Dataset):
     def __init__(self, diff_dir, disp_dir, nor_dir, rough_dir,transform=None):
         self.diff = diff_dir
@@ -40,3 +42,12 @@ diff_dir = "./Data/diff"
 disp_dir = "./Data/disp"
 nor_dir = "./Data/nor"
 rough_dir = "./Data/rough"
+
+dataset = TextureDataset(diff_dir, disp_dir, nor_dir, rough_dir, transform = data_transform)
+
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+
+train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+train_dataloader = DataLoader(train_dataset, batch_size = 32, shuffle =True)
+test_dataloader = DataLoader(test_dataset, batch_size = 32, shuffle = True)
